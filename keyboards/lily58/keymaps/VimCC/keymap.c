@@ -14,7 +14,7 @@
 #define COMB2(a, b) ((a << 8) | b)
 
 char  vim_state_buffer[21] = {0};
-char *vim_mode_str[]       = {"disabled", "normal", "insert", "insert rep1", "insert rep",  "visual", "cmd"};
+char *vim_mode_str[]       = {"disabled", "normal", "insert", "insert rep1", "insert rep", "find", "visual", "cmd"};
 
 typedef enum vim_mode {
     VIM_DISABLED,
@@ -22,6 +22,7 @@ typedef enum vim_mode {
     VIM_INSERT,
     VIM_INSERT_REP1,
     VIM_INSERT_REP,
+    VIM_FIND,
     VIM_VISUAL,
     VIM_CMD,
 } vim_mode;
@@ -160,7 +161,8 @@ bool process_vim_key(Vim *vim, uint16_t keycode) {
                     break;
                 case KC_A | VIM_MASK_SHIFT:
                     tap_code16(KC_END);
-                    /* fallthrough */
+                    vim->mode = VIM_INSERT;
+                    break;
                 case KC_A:
                     tap_code16(KC_RIGHT);
                     vim->mode = VIM_INSERT;
@@ -186,9 +188,6 @@ bool process_vim_key(Vim *vim, uint16_t keycode) {
                 case KC_F | VIM_MASK_CTRL:
                     tap_code16(KC_PAGE_DOWN);
                     break;
-               case KC_4 | VIM_MASK_SHIFT:
-                    tap_code16(KC_END);
-                    break;
                 case KC_P:
                     tap_code16(KC_PASTE);
                     break;
@@ -203,6 +202,12 @@ bool process_vim_key(Vim *vim, uint16_t keycode) {
                     break;
                 case KC_R | VIM_MASK_SHIFT:
                     vim->mode = VIM_INSERT_REP;
+                    break;
+                case KC_N:
+                    tap_code16(KC_ENTER);
+                    break;
+                case KC_ENTER | VIM_MASK_SHIFT:
+                    tap_code16(S(KC_ENTER));
                     break;
                 default:
                     cmd = false;
@@ -333,12 +338,25 @@ bool process_vim_key(Vim *vim, uint16_t keycode) {
                     vim->num2 = vim->num2 == 0 ? 1 : vim->num2;
                     tap_vim_code(vim, C(KC_LEFT), vim->num1 * vim->num2);
                     break;
-               case KC_G:
+                case KC_G:
                     // vim->state = VS_G;
-                    resBuf = 2;
+                    resBuf = 2; // waiting for next key
                     break;
                 case COMB2(KC_G, KC_G):
-                    tap_vim_code(vim, C(KC_HOME), 1);
+                    tap_code16(C(KC_HOME));
+                    tap_vim_code(vim, KC_DOWN, vim->num2);
+                    break;
+                case KC_X:
+                    vim->num2 = vim->num2 == 0 ? 1 : vim->num2;
+                    tapn_code(KC_DEL, vim->num2);
+                    break;
+                case KC_X | VIM_MASK_SHIFT:
+                    vim->num2 = vim->num2 == 0 ? 1 : vim->num2;
+                    tapn_code(KC_BACKSPACE, vim->num2);
+                    break;
+                case KC_SLSH:
+                    tap_code16(C(KC_F));
+                    vim->mode = VIM_FIND;
                     break;
                 default:
                     break;
@@ -379,6 +397,25 @@ bool process_vim_key(Vim *vim, uint16_t keycode) {
             } else if (vim->mode == VIM_INSERT_REP) {
                 tap_code16(KC_DELETE);
             }
+            break;
+        case VIM_FIND:
+            switch (key) {
+                case KC_ESC:
+                    /* fallthrough */
+                case KC_C | VIM_MASK_CTRL:
+                    tap_code16(KC_ESC);
+                    vim->mode = VIM_NORMAL;
+                    ret       = false;
+                    break;
+                case KC_ENTER:
+                    tap_code16(KC_ENTER);
+                    ret = false;
+                    break;
+                default:
+                    ret = true;
+                    break;
+            }
+            break;
         case VIM_CMD:
             if (keycode == KC_ESC) {
                 vim->mode = VIM_NORMAL;
@@ -465,19 +502,19 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
     [_RAISE] = LAYOUT(KC_F1, KC_F2, KC_F3, KC_F4, KC_F5, KC_F6, _______, _______, _______, _______, _______, _______, _______, _______, _______, KC_LCBR, KC_RCBR, _______, KC_6, KC_7, KC_8, KC_9, KC_0, _______, _______, KC_PIPE, KC_BSLS, KC_LPRN, KC_RPRN, _______, KC_CIRC, KC_AMPR, KC_ASTR, KC_LPRN, KC_RPRN, KC_TILD, _______, _______, _______, KC_LBRC, KC_RBRC, _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, _______),
     /* ADJUST
      * ,-----------------------------------------.                    ,-----------------------------------------.
-     * |      |      |      |      |      |      |                    |      |      |      |      |      |      |
+     * |      |      |MCPLAY|      |      |      |                    |      |      |      |      |      |      |
      * |------+------+------+------+------+------|                    |------+------+------+------+------+------|
-     * |      |      |      |      | VOL+ |      |                    |      |      |      |      |      |      |
+     * |      |MCREC |      |BRI+  | VOL+ |      |                    |      |      |      |      |      |      |
      * |------+------+------+------+------+------|                    |------+------+------+------+------+------|
-     * |      |      |      |      |PAUSE |      |-------.    ,-------|      |      |RGB ON| HUE+ | SAT+ | VAL+ |
+     * |      |      |      |NEXT  |PAUSE |PREV  |-------.    ,-------|      |      |RGB ON| HUE+ | SAT+ | VAL+ |
      * |------+------+------+------+------+------|       |    |       |------+------+------+------+------+------|
-     * |      |      |      |      | VOL- |      |-------|    |-------|      |      | MODE | HUE- | SAT- | VAL- |
+     * |      |      |      |BRI-  | VOL- |      |-------|    |-------|      |      | MODE | HUE- | SAT- | VAL- |
      * `-----------------------------------------/       /     \      \-----------------------------------------'
      *                   | LAlt | LGUI |LOWER | /Space  /       \Enter \  |RAISE |BackSP| RGUI |
      *                   |      |      |      |/       /         \      \ |      |      |      |
      *                   `----------------------------'           '------''--------------------'
      */
-    [_ADJUST] = LAYOUT(XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, _______, _______, _______, _______, _______, _______, _______, _______)};
+    [_ADJUST] = LAYOUT(XXXXXXX, XXXXXXX, QK_DYNAMIC_MACRO_PLAY_1, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, QK_DYNAMIC_MACRO_RECORD_START_1, XXXXXXX, KC_BRIU, KC_VOLU, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, KC_MEDIA_PREV_TRACK, KC_MEDIA_PLAY_PAUSE, KC_MEDIA_NEXT_TRACK, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, _______, _______, _______, _______, _______, _______, _______, _______)};
 
 layer_state_t layer_state_set_user(layer_state_t state) {
     return update_tri_layer_state(state, _LOWER, _RAISE, _ADJUST);
