@@ -15,6 +15,7 @@ DEBOUNCE_TYPE = sym_defer_pk
 ENCODER_ENABLE = yes
 CONVERT_TO = rp2040_ce
 DYNAMIC_MACRO_ENABLE = yes
+RAW_ENABLE = yes
 
 
 # If you want to change the display of OLED, you need to change here
