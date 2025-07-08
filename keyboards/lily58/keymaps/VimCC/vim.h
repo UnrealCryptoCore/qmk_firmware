@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
+#include "keycodes.h"
 #include "quantum.h"
 
 #define VIM_MASK_SHIFT 0b01000000
@@ -66,8 +67,9 @@ void        tapn_code(uint16_t keycode, int n);
 void        reset_vim_buf(Vim *vim);
 void        tap_vim_code(Vim *vim, uint16_t keycode, int n);
 bool        process_vim_key(Vim *vim, uint16_t keycode);
+void        set_vim_mode(Vim *vim, vim_mode mode);
 
-// #define VIM_IMPLEMENTATION
+#define VIM_IMPLEMENTATION
 #ifdef VIM_IMPLEMENTATION
 void toggle_vim_mode(Vim *vim) {
     if (vim->mode == VIM_DISABLED) {
@@ -137,6 +139,10 @@ void tap_vim_code(Vim *vim, uint16_t keycode, int n) {
     }
 }
 
+void set_vim_mode(Vim *vim, vim_mode mode) {
+    vim->mode = mode;
+}
+
 bool process_vim_key(Vim *vim, uint16_t keycode) {
     if (keycode >= 64) {
         return true;
@@ -161,27 +167,27 @@ bool process_vim_key(Vim *vim, uint16_t keycode) {
                     /* fallthrough */
                 case KC_ESC:
                     if (vim->mode == VIM_VISUAL) {
-                        vim->mode = VIM_NORMAL;
+                        set_vim_mode(vim, VIM_NORMAL);
                     } else {
                         ret = true;
                     }
                     break;
                 case KC_A | VIM_MASK_SHIFT:
                     tap_code16(KC_END);
-                    vim->mode = VIM_INSERT;
+                    set_vim_mode(vim, VIM_INSERT);
                     break;
                 case KC_A:
                     tap_code16(KC_RIGHT);
-                    vim->mode = VIM_INSERT;
+                    set_vim_mode(vim, VIM_INSERT);
                     break;
                 case KC_I | VIM_MASK_SHIFT:
                     tap_code16(KC_HOME);
                     /* fallthrough */
                 case KC_I:
-                    vim->mode = VIM_INSERT;
+                    set_vim_mode(vim, VIM_INSERT);
                     break;
                 case KC_V:
-                    vim->mode = VIM_VISUAL;
+                    set_vim_mode(vim, VIM_VISUAL);
                     break;
                 case KC_U | VIM_MASK_CTRL:
                     tap_code16(KC_PAGE_UP);
@@ -205,17 +211,26 @@ bool process_vim_key(Vim *vim, uint16_t keycode) {
                     tap_code16(C(KC_Y));
                     break;
                 case KC_R:
-                    vim->mode = VIM_INSERT_REP1;
+                    set_vim_mode(vim, VIM_INSERT_REP1);
                     break;
                 case KC_R | VIM_MASK_SHIFT:
-                    vim->mode = VIM_INSERT_REP;
+                    set_vim_mode(vim, VIM_INSERT_REP);
                     break;
                 case KC_N:
                     tap_code16(KC_ENTER);
                     break;
-                case KC_ENTER | VIM_MASK_SHIFT:
+                case KC_N | VIM_MASK_SHIFT:
                     tap_code16(S(KC_ENTER));
                     break;
+                case KC_O:
+                    tap_code16(KC_END);
+                    tap_code16(KC_ENTER);
+                    set_vim_mode(vim, VIM_INSERT);
+                case KC_O | VIM_MASK_SHIFT:
+                    tap_code16(KC_UP);
+                    tap_code16(KC_END);
+                    tap_code16(KC_ENTER);
+                    set_vim_mode(vim, VIM_INSERT);
                 default:
                     cmd = false;
                     break;
@@ -228,7 +243,7 @@ bool process_vim_key(Vim *vim, uint16_t keycode) {
                 case KC_Y: // yank
                     if (vim->mode == VIM_VISUAL) {
                         tap_code16(KC_COPY);
-                        vim->mode = VIM_NORMAL;
+                        set_vim_mode(vim, VIM_NORMAL);
                     } else {
                         switch (vim->op) {
                             case OP_NONE:
@@ -246,7 +261,7 @@ bool process_vim_key(Vim *vim, uint16_t keycode) {
                 case KC_D: // delete
                     if (vim->mode == VIM_VISUAL) {
                         tap_code16(KC_CUT);
-                        vim->mode = VIM_NORMAL;
+                        set_vim_mode(vim, VIM_NORMAL);
                     } else {
                         switch (vim->op) {
                             case OP_NONE:
@@ -363,7 +378,7 @@ bool process_vim_key(Vim *vim, uint16_t keycode) {
                     break;
                 case KC_SLSH:
                     tap_code16(C(KC_F));
-                    vim->mode = VIM_FIND;
+                    set_vim_mode(vim, VIM_FIND);
                     break;
                 default:
                     break;
@@ -386,8 +401,8 @@ bool process_vim_key(Vim *vim, uint16_t keycode) {
                 case KC_ESC:
                     /* fallthrough */
                 case KC_C | VIM_MASK_CTRL:
-                    vim->mode = VIM_NORMAL;
-                    ret       = false;
+                    set_vim_mode(vim, VIM_NORMAL);
+                    ret = false;
                     break;
                 case KC_H | VIM_MASK_CTRL:
                     tap_code16(KC_BACKSPACE);
@@ -400,7 +415,7 @@ bool process_vim_key(Vim *vim, uint16_t keycode) {
             if (vim->mode == VIM_INSERT_REP1) {
                 tap_code16(KC_DELETE);
                 tap_code16(KC_LEFT);
-                vim->mode = VIM_NORMAL;
+                set_vim_mode(vim, VIM_NORMAL);
             } else if (vim->mode == VIM_INSERT_REP) {
                 tap_code16(KC_DELETE);
             }
@@ -411,8 +426,8 @@ bool process_vim_key(Vim *vim, uint16_t keycode) {
                     /* fallthrough */
                 case KC_C | VIM_MASK_CTRL:
                     tap_code16(KC_ESC);
-                    vim->mode = VIM_NORMAL;
-                    ret       = false;
+                    set_vim_mode(vim, VIM_NORMAL);
+                    ret = false;
                     break;
                 case KC_ENTER:
                     tap_code16(KC_ENTER);
@@ -425,8 +440,8 @@ bool process_vim_key(Vim *vim, uint16_t keycode) {
             break;
         case VIM_CMD:
             if (keycode == KC_ESC) {
-                vim->mode = VIM_NORMAL;
-                ret       = false;
+                set_vim_mode(vim, VIM_NORMAL);
+                ret = false;
                 break;
             }
             break;
