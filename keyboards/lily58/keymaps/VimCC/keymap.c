@@ -1,3 +1,4 @@
+#include QMK_KEYBOARD_H
 #include <stdbool.h>
 #include <string.h>
 #include <stdint.h>
@@ -13,8 +14,6 @@
 #include "quantum.h"
 #include "quantum/raw_hid.h"
 #include "quantum_keycodes.h"
-#include QMK_KEYBOARD_H
-#define VIM_IMPLEMENTATION
 #include "vim.h"
 
 enum layer_number {
@@ -44,9 +43,8 @@ typedef struct MSGCopyData {
     char    data[31];
 } MSGCopyData;
 
-
-static char copy_buffer[1024] = { 0 };
-static bool os_connected = false;
+static char copy_buffer[1024] = {0};
+static bool os_connected      = false;
 
 static Vim *vim = &(Vim){
     .mode  = VIM_DISABLED,
@@ -56,6 +54,22 @@ static Vim *vim = &(Vim){
     .op    = OP_NONE,
     .state = VS_IDLE,
 };
+
+void send_code(uint16_t keycode) {
+    tap_code16(keycode);
+}
+
+uint8_t get_modifiers() {
+    return (get_mods() | get_oneshot_mods()) & (MOD_MASK_SHIFT | MOD_MASK_CTRL);
+}
+
+void register_modifiers(uint8_t mods) {
+    register_mods(mods);
+}
+
+void unregister_modifiers(uint8_t mods) {
+    unregister_mods(mods);
+}
 
 const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
 
@@ -129,7 +143,7 @@ layer_state_t layer_state_set_user(layer_state_t state) {
 
 void process_copy_raw(void) {
     uint8_t response[RAW_EPSIZE] = {0};
-    response[0] = MSG_KB_COPY;
+    response[0]                  = MSG_KB_COPY;
     raw_hid_send(response, RAW_EPSIZE);
 }
 
@@ -158,8 +172,8 @@ bool oled_task_user(void) {
     if (is_keyboard_master()) {
         // If you want to change the display of OLED, you need to change here
         oled_write_ln(read_layer_state(), false);
-        //oled_write_ln(read_keylog(), false);
-        //oled_write_ln(read_keylogs(), false);
+        // oled_write_ln(read_keylog(), false);
+        // oled_write_ln(read_keylogs(), false);
         oled_write_ln(read_vim_state(vim), false);
         snprintf(buf, sizeof(buf), "con: %s", os_connected ? "true" : "false");
         oled_write_ln(buf, false);
@@ -171,7 +185,7 @@ bool oled_task_user(void) {
         // oled_write_ln(read_timelog(), false);
     } else {
         oled_write(read_logo(), false);
-   }
+    }
     return false;
 }
 #endif // OLED_ENABLE
@@ -225,7 +239,7 @@ void raw_hid_receive(uint8_t *data, uint8_t length) {
             cpData = (MSGCopyData *)data;
             memset(copy_buffer, 0, sizeof(copy_buffer));
             strncpy(copy_buffer, cpData->data, sizeof(copy_buffer) - 1);
-            raw_hid_send((uint8_t*)copy_buffer, length);
+            raw_hid_send((uint8_t *)copy_buffer, length);
             break;
         case MSG_OS_COPY_PART:
             cpData = (MSGCopyData *)data;
@@ -234,7 +248,7 @@ void raw_hid_receive(uint8_t *data, uint8_t length) {
             break;
         default:
             response[0] = MSG_NONE;
-            strcpy((char*)(response + 1), "invalid request");
+            strcpy((char *)(response + 1), "invalid request");
             raw_hid_send(response, length);
             break;
     }
